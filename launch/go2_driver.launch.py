@@ -26,7 +26,12 @@ def generate_launch_description():
         plugin='go2_driver::Go2Driver',
         name='go2_driver',
         namespace='',
-
+        parameters=[{
+            'publish_odom_tf': True,
+            'publish_odom': True,
+            'publish_sportmode_odom': True,
+            'generic_state_pub_hz': 1.0,
+        }],
     )
     composable_nodes.append(composable_node)
 
