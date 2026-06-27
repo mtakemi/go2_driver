@@ -16,6 +16,11 @@ find_package(unitree_go REQUIRED)
 find_package(unitree_api REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(go2_interfaces REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/GenericState.msg"
+)
 
 set(dependencies
   rclcpp
@@ -32,16 +37,18 @@ set(dependencies
 
 include_directories(include)
 
-add_library(${PROJECT_NAME} SHARED
+add_library(${PROJECT_NAME}_lib SHARED
   src/go2_driver/go2_driver.cpp
 )
 
-ament_target_dependencies(${PROJECT_NAME} ${dependencies})
+ament_target_dependencies(${PROJECT_NAME}_lib ${dependencies})
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_NAME}_lib "${cpp_typesupport_target}")
 
-rclcpp_components_register_nodes(${PROJECT_NAME} "go2_driver::Go2Driver")
+rclcpp_components_register_nodes(${PROJECT_NAME}_lib "go2_driver::Go2Driver")
 
 install(TARGETS
-  ${PROJECT_NAME}
+  ${PROJECT_NAME}_lib
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -58,7 +65,7 @@ install(DIRECTORY launch
 )
 
 ament_export_include_directories(include)
-ament_export_libraries(${PROJECT_NAME})
+ament_export_libraries(${PROJECT_NAME}_lib)
 ament_export_dependencies(${dependencies})
 
 if(BUILD_TESTING)

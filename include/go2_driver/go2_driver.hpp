@@ -56,6 +56,7 @@
 #include "go2_interfaces/srv/speed_level.hpp"
 #include "go2_interfaces/srv/switch_gait.hpp"
 #include "go2_interfaces/srv/switch_joystick.hpp"
+#include "go2_driver/msg/generic_state.hpp"
 
 namespace go2_driver
 {
@@ -72,6 +73,7 @@ private:
   void low_state_handler(const unitree_go::msg::LowState::SharedPtr msg);
   void sportmode_state_handler(const unitree_go::msg::SportModeState::SharedPtr msg);
   void cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
+  void generic_timer_callback();
 
   void handleBodyHeight(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -130,6 +132,7 @@ private:
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
   rclcpp::Publisher<unitree_api::msg::Request>::SharedPtr request_pub_;
+  rclcpp::Publisher<go2_driver::msg::GenericState>::SharedPtr generic_state_pub_;
 
   rclcpp::Service<go2_interfaces::srv::BodyHeight>::SharedPtr set_body_height_service_;
   rclcpp::Service<go2_interfaces::srv::ContinuousGait>::SharedPtr set_continuous_gait_service_;
@@ -141,16 +144,18 @@ private:
   rclcpp::Service<go2_interfaces::srv::SwitchGait>::SharedPtr set_switch_gait_service_;
   rclcpp::Service<go2_interfaces::srv::SwitchJoystick>::SharedPtr set_switch_joystick_service_;
 
-  rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr generic_timer_;
   rclcpp::TimerBase::SharedPtr timer_lidar_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   sensor_msgs::msg::Joy joy_state_;
+  go2_driver::msg::GenericState generic_state_;
 
   bool odom_published_{false};
 
   bool publish_odom_tf_{false};
   bool publish_odom_{false};
   bool publish_sportmode_odom_{true};
+  double generic_state_pub_hz_{2.0};
 };
 
 }  // namespace go2_driver

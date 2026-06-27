@@ -44,9 +44,12 @@ Go2Driver::Go2Driver(
   this->declare_parameter<bool>("publish_odom_tf", false);
   this->declare_parameter<bool>("publish_odom", false);
   this->declare_parameter<bool>("publish_sportmode_odom", true);
+  this->declare_parameter<double>("generic_state_pub_hz", 2.0);
+
   publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
   publish_odom_ = this->get_parameter("publish_odom").as_bool();
   publish_sportmode_odom_ = this->get_parameter("publish_sportmode_odom").as_bool();
+  generic_state_pub_hz_ = this->get_parameter("generic_state_pub_hz").as_double();
 
 
   pointcloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("pointcloud", 10);
@@ -54,6 +57,7 @@ Go2Driver::Go2Driver(
   odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", qos_profile);
   imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu_lowstate", 10);
   request_pub_ = create_publisher<unitree_api::msg::Request>("api/sport/request", 10);
+  generic_state_pub_ = create_publisher<go2_driver::msg::GenericState>("generic_state", 10);
 
   pointcloud_sub_ = create_subscription<sensor_msgs::msg::PointCloud2>(
     "/utlidar/cloud", 10,
@@ -139,6 +143,15 @@ Go2Driver::Go2Driver(
     std::bind(
       &Go2Driver::handleSwitchJoystick, this,
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+  generic_timer_ = this->create_wall_timer(
+    std::chrono::milliseconds(static_cast<int>(1000.0 / generic_state_pub_hz_)),
+    std::bind(&Go2Driver::generic_timer_callback, this));
+}
+
+void Go2Driver::generic_timer_callback()
+{
+  generic_state_pub_->publish(generic_state_);
 }
 
 void Go2Driver::publish_lidar(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
@@ -224,11 +237,17 @@ void Go2Driver::low_state_handler(const unitree_go::msg::LowState::SharedPtr msg
   imu_msg.linear_acceleration.z = accel[2];
   
   imu_pub_->publish(imu_msg);
+
+  generic_state_.bms_soc = msg->bms_state.soc;
+  generic_state_.bms_current = msg->bms_state.current;
+  generic_state_.temperature = (msg->temperature_ntc1 + msg->temperature_ntc2) / 2;
 }
 
 void Go2Driver::sportmode_state_handler(const unitree_go::msg::SportModeState::SharedPtr msg)
 {
   nav_msgs::msg::Odometry odom;
+
+  generic_state_.body_height = msg->body_height;
 
   if (publish_sportmode_odom_) {
     odom.header.stamp = now();
