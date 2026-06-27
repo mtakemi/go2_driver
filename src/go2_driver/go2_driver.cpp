@@ -42,8 +42,10 @@ Go2Driver::Go2Driver(
   qos_profile.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
 
   this->declare_parameter<bool>("publish_odom_tf", false);
+  this->declare_parameter<bool>("publish_odom", false);
   this->declare_parameter<bool>("publish_sportmode_odom", true);
   publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
+  publish_odom_ = this->get_parameter("publish_odom").as_bool();
   publish_sportmode_odom_ = this->get_parameter("publish_sportmode_odom").as_bool();
 
 
@@ -162,7 +164,7 @@ void Go2Driver::publish_pose_stamped(const geometry_msgs::msg::PoseStamped::Shar
     transform.transform.rotation.w = msg->pose.orientation.w;
     tf_broadcaster_.sendTransform(transform);
 
-    if (!odom_published_) {
+    if (publish_odom_) {
       nav_msgs::msg::Odometry odom;
       odom.header.stamp = now();
       odom.header.frame_id = "odom";
@@ -228,25 +230,27 @@ void Go2Driver::sportmode_state_handler(const unitree_go::msg::SportModeState::S
 {
   nav_msgs::msg::Odometry odom;
 
-  odom.header.stamp = now();
-  odom.header.frame_id = "odom";
-  odom.child_frame_id = "base_link";
-  odom.pose.pose.position.x = msg->position[0];  
-  odom.pose.pose.position.y = msg->position[1];  
-  odom.pose.pose.position.z = msg->position[2];  
-  odom.pose.pose.orientation.x = msg->imu_state.quaternion[1];  
-  odom.pose.pose.orientation.y = msg->imu_state.quaternion[2];  
-  odom.pose.pose.orientation.z = msg->imu_state.quaternion[3];  
-  odom.pose.pose.orientation.w = msg->imu_state.quaternion[0];  
-  odom.twist.twist.linear.x = msg->velocity[0];  
-  odom.twist.twist.linear.y = msg->velocity[1];  
-  odom.twist.twist.linear.z = msg->velocity[2];  
-  odom.twist.twist.angular.x = msg->imu_state.gyroscope[0];  
-  odom.twist.twist.angular.y = msg->imu_state.gyroscope[1];  
-  odom.twist.twist.angular.z = msg->yaw_speed;
+  if (publish_sportmode_odom_) {
+    odom.header.stamp = now();
+    odom.header.frame_id = "odom";
+    odom.child_frame_id = "base_link";
+    odom.pose.pose.position.x = msg->position[0];  
+    odom.pose.pose.position.y = msg->position[1];  
+    odom.pose.pose.position.z = msg->position[2];  
+    odom.pose.pose.orientation.x = msg->imu_state.quaternion[1];  
+    odom.pose.pose.orientation.y = msg->imu_state.quaternion[2];  
+    odom.pose.pose.orientation.z = msg->imu_state.quaternion[3];  
+    odom.pose.pose.orientation.w = msg->imu_state.quaternion[0];  
+    odom.twist.twist.linear.x = msg->velocity[0];  
+    odom.twist.twist.linear.y = msg->velocity[1];  
+    odom.twist.twist.linear.z = msg->velocity[2];  
+    odom.twist.twist.angular.x = msg->imu_state.gyroscope[0];  
+    odom.twist.twist.angular.y = msg->imu_state.gyroscope[1];  
+    odom.twist.twist.angular.z = msg->yaw_speed;
 
-  odom_pub_->publish(odom);
-
+    odom_pub_->publish(odom);
+  }
+ 
 }
 
 void Go2Driver::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)

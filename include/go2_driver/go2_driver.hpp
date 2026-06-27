@@ -148,7 +148,8 @@ private:
 
   bool odom_published_{false};
 
-  bool publish_odom_tf_{true};
+  bool publish_odom_tf_{false};
+  bool publish_odom_{false};
   bool publish_sportmode_odom_{true};
 };
 
