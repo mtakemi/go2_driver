@@ -41,6 +41,12 @@ Go2Driver::Go2Driver(
   rclcpp::QoS qos_profile(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
   qos_profile.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
 
+  this->declare_parameter<bool>("publish_odom_tf", false);
+  this->declare_parameter<bool>("publish_sportmode_odom", true);
+  publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
+  publish_sportmode_odom_ = this->get_parameter("publish_sportmode_odom").as_bool();
+
+
   pointcloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("pointcloud", 10);
   joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("joint_states", 10);
   odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", qos_profile);
@@ -61,6 +67,10 @@ Go2Driver::Go2Driver(
   low_state_sub_ = create_subscription<unitree_go::msg::LowState>(
     "lowstate", 10,
     std::bind(&Go2Driver::low_state_handler, this, std::placeholders::_1));
+
+  sportmode_state_sub_ = create_subscription<unitree_go::msg::SportModeState>(
+    "sportmode_state", 10,
+    std::bind(&Go2Driver::sportmode_state_handler, this, std::placeholders::_1));
 
   cmd_vel_sub_ = create_subscription<geometry_msgs::msg::Twist>(
     "cmd_vel", 10, std::bind(&Go2Driver::cmd_vel_callback, this, std::placeholders::_1));
@@ -138,33 +148,35 @@ void Go2Driver::publish_lidar(const sensor_msgs::msg::PointCloud2::SharedPtr msg
 
 void Go2Driver::publish_pose_stamped(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  geometry_msgs::msg::TransformStamped transform;
-  transform.header.stamp = now();
-  transform.header.frame_id = "odom";
-  transform.child_frame_id = "base_link";
-  transform.transform.translation.x = msg->pose.position.x;
-  transform.transform.translation.y = msg->pose.position.y;
-  transform.transform.translation.z = msg->pose.position.z + 0.07;
-  transform.transform.rotation.x = msg->pose.orientation.x;
-  transform.transform.rotation.y = msg->pose.orientation.y;
-  transform.transform.rotation.z = msg->pose.orientation.z;
-  transform.transform.rotation.w = msg->pose.orientation.w;
-  tf_broadcaster_.sendTransform(transform);
+  if(publish_odom_tf_){
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = now();
+    transform.header.frame_id = "odom";
+    transform.child_frame_id = "base_link";
+    transform.transform.translation.x = msg->pose.position.x;
+    transform.transform.translation.y = msg->pose.position.y;
+    transform.transform.translation.z = msg->pose.position.z + 0.07;
+    transform.transform.rotation.x = msg->pose.orientation.x;
+    transform.transform.rotation.y = msg->pose.orientation.y;
+    transform.transform.rotation.z = msg->pose.orientation.z;
+    transform.transform.rotation.w = msg->pose.orientation.w;
+    tf_broadcaster_.sendTransform(transform);
 
-  if (!odom_published_) {
-    nav_msgs::msg::Odometry odom;
-    odom.header.stamp = now();
-    odom.header.frame_id = "odom";
-    odom.child_frame_id = "base_link";
-    odom.pose.pose.position.x = msg->pose.position.x;
-    odom.pose.pose.position.y = msg->pose.position.y;
-    odom.pose.pose.position.z = msg->pose.position.z + 0.07;
-    odom.pose.pose.orientation.x = msg->pose.orientation.x;
-    odom.pose.pose.orientation.y = msg->pose.orientation.y;
-    odom.pose.pose.orientation.z = msg->pose.orientation.z;
-    odom.pose.pose.orientation.w = msg->pose.orientation.w;
-    odom_pub_->publish(odom);
-    odom_published_ = true;
+    if (!odom_published_) {
+      nav_msgs::msg::Odometry odom;
+      odom.header.stamp = now();
+      odom.header.frame_id = "odom";
+      odom.child_frame_id = "base_link";
+      odom.pose.pose.position.x = msg->pose.position.x;
+      odom.pose.pose.position.y = msg->pose.position.y;
+      odom.pose.pose.position.z = msg->pose.position.z + 0.07;
+      odom.pose.pose.orientation.x = msg->pose.orientation.x;
+      odom.pose.pose.orientation.y = msg->pose.orientation.y;
+      odom.pose.pose.orientation.z = msg->pose.orientation.z;
+      odom.pose.pose.orientation.w = msg->pose.orientation.w;
+      odom_pub_->publish(odom);
+      odom_published_ = true;
+    }
   }
 }
 
@@ -210,6 +222,31 @@ void Go2Driver::low_state_handler(const unitree_go::msg::LowState::SharedPtr msg
   imu_msg.linear_acceleration.z = accel[2];
   
   imu_pub_->publish(imu_msg);
+}
+
+void Go2Driver::sportmode_state_handler(const unitree_go::msg::SportModeState::SharedPtr msg)
+{
+  nav_msgs::msg::Odometry odom;
+
+  odom.header.stamp = now();
+  odom.header.frame_id = "odom";
+  odom.child_frame_id = "base_link";
+  odom.pose.pose.position.x = msg->position[0];  
+  odom.pose.pose.position.y = msg->position[1];  
+  odom.pose.pose.position.z = msg->position[2];  
+  odom.pose.pose.orientation.x = msg->imu_state.quaternion[1];  
+  odom.pose.pose.orientation.y = msg->imu_state.quaternion[2];  
+  odom.pose.pose.orientation.z = msg->imu_state.quaternion[3];  
+  odom.pose.pose.orientation.w = msg->imu_state.quaternion[0];  
+  odom.twist.twist.linear.x = msg->velocity[0];  
+  odom.twist.twist.linear.y = msg->velocity[1];  
+  odom.twist.twist.linear.z = msg->velocity[2];  
+  odom.twist.twist.angular.x = msg->imu_state.gyroscope[0];  
+  odom.twist.twist.angular.y = msg->imu_state.gyroscope[1];  
+  odom.twist.twist.angular.z = msg->yaw_speed;
+
+  odom_pub_->publish(odom);
+
 }
 
 void Go2Driver::cmd_vel_callback(const geometry_msgs::msg::Twist::SharedPtr msg)
