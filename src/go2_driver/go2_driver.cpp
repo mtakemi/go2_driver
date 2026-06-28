@@ -41,21 +41,36 @@ Go2Driver::Go2Driver(
   rclcpp::QoS qos_profile(rclcpp::QoSInitialization::from_rmw(rmw_qos_profile_default));
   qos_profile.durability(RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL);
 
-  this->declare_parameter<bool>("publish_odom_tf", false);
-  this->declare_parameter<bool>("publish_odom", false);
+  this->declare_parameter<bool>("publish_lowstate_odom_tf", false);
+  this->declare_parameter<bool>("publish_sportmode_odom_tf", true);
+  this->declare_parameter<bool>("publish_lowstate_odom", false);
   this->declare_parameter<bool>("publish_sportmode_odom", true);
+  this->declare_parameter<bool>("publish_lowstate_imu", true);
+  this->declare_parameter<bool>("publish_sportmode_imu", true);
   this->declare_parameter<double>("generic_state_pub_hz", 2.0);
 
-  publish_odom_tf_ = this->get_parameter("publish_odom_tf").as_bool();
-  publish_odom_ = this->get_parameter("publish_odom").as_bool();
+  publish_lowstate_odom_tf_ = this->get_parameter("publish_lowstate_odom_tf").as_bool();
+  publish_sportmode_odom_tf_ = this->get_parameter("publish_sportmode_odom_tf").as_bool();
+  publish_lowstate_odom_ = this->get_parameter("publish_lowstate_odom").as_bool();
   publish_sportmode_odom_ = this->get_parameter("publish_sportmode_odom").as_bool();
+  publish_lowstate_imu_ = this->get_parameter("publish_lowstate_imu").as_bool();
+  publish_sportmode_imu_ = this->get_parameter("publish_sportmode_imu").as_bool();
   generic_state_pub_hz_ = this->get_parameter("generic_state_pub_hz").as_double();
 
 
   pointcloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("pointcloud", 10);
   joint_state_pub_ = create_publisher<sensor_msgs::msg::JointState>("joint_states", 10);
-  odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", qos_profile);
-  imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu_lowstate", 10);
+  if(publish_lowstate_odom_){
+    odom_lowstate_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+  } else if(publish_sportmode_odom_){
+    odom_sportmode_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+  }
+  if(publish_lowstate_imu_){
+    imu_lowstate_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu_lowstate", 10);
+  }
+  if(publish_sportmode_imu_){
+    imu_sportmode_pub_ = create_publisher<sensor_msgs::msg::Imu>("/imu_sportmode", 10);
+  }
   request_pub_ = create_publisher<unitree_api::msg::Request>("api/sport/request", 10);
   generic_state_pub_ = create_publisher<go2_driver::msg::GenericState>("generic_state", 10);
 
@@ -163,7 +178,7 @@ void Go2Driver::publish_lidar(const sensor_msgs::msg::PointCloud2::SharedPtr msg
 
 void Go2Driver::publish_pose_stamped(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
-  if(publish_odom_tf_){
+  if(publish_lowstate_odom_tf_){
     geometry_msgs::msg::TransformStamped transform;
     transform.header.stamp = now();
     transform.header.frame_id = "odom";
@@ -177,7 +192,7 @@ void Go2Driver::publish_pose_stamped(const geometry_msgs::msg::PoseStamped::Shar
     transform.transform.rotation.w = msg->pose.orientation.w;
     tf_broadcaster_.sendTransform(transform);
 
-    if (publish_odom_) {
+    if (publish_lowstate_odom_) {
       nav_msgs::msg::Odometry odom;
       odom.header.stamp = now();
       odom.header.frame_id = "odom";
@@ -189,7 +204,7 @@ void Go2Driver::publish_pose_stamped(const geometry_msgs::msg::PoseStamped::Shar
       odom.pose.pose.orientation.y = msg->pose.orientation.y;
       odom.pose.pose.orientation.z = msg->pose.orientation.z;
       odom.pose.pose.orientation.w = msg->pose.orientation.w;
-      odom_pub_->publish(odom);
+      odom_lowstate_pub_->publish(odom);
       odom_published_ = true;
     }
   }
@@ -216,27 +231,29 @@ void Go2Driver::low_state_handler(const unitree_go::msg::LowState::SharedPtr msg
 
   joint_state_pub_->publish(joint_state);
 
-  sensor_msgs::msg::Imu imu_msg;
-  imu_msg.header.stamp = now();
-  imu_msg.header.frame_id = "imu";
+  if (publish_lowstate_imu_) {
+    sensor_msgs::msg::Imu imu_msg;
+    imu_msg.header.stamp = now();
+    imu_msg.header.frame_id = "imu";
 
-  std::array<float, 4> q = msg->imu_state.quaternion;
-  imu_msg.orientation.x = q[1];
-  imu_msg.orientation.y = q[2];
-  imu_msg.orientation.z = q[3];
-  imu_msg.orientation.w = q[0];
+    std::array<float, 4> q = msg->imu_state.quaternion;
+    imu_msg.orientation.x = q[1];
+    imu_msg.orientation.y = q[2];
+    imu_msg.orientation.z = q[3];
+    imu_msg.orientation.w = q[0];
 
-  std::array<float, 3> gyro = msg->imu_state.gyroscope;
-  imu_msg.angular_velocity.x = gyro[0];
-  imu_msg.angular_velocity.y = gyro[1];
-  imu_msg.angular_velocity.z = gyro[2];
+    std::array<float, 3> gyro = msg->imu_state.gyroscope;
+    imu_msg.angular_velocity.x = gyro[0];
+    imu_msg.angular_velocity.y = gyro[1];
+    imu_msg.angular_velocity.z = gyro[2];
 
-  std::array<float, 3> accel = msg->imu_state.accelerometer;
-  imu_msg.linear_acceleration.x = accel[0];
-  imu_msg.linear_acceleration.y = accel[1];
-  imu_msg.linear_acceleration.z = accel[2];
-  
-  imu_pub_->publish(imu_msg);
+    std::array<float, 3> accel = msg->imu_state.accelerometer;
+    imu_msg.linear_acceleration.x = accel[0];
+    imu_msg.linear_acceleration.y = accel[1];
+    imu_msg.linear_acceleration.z = accel[2];
+    
+    imu_lowstate_pub_->publish(imu_msg);
+  }
 
   generic_state_.bms_soc = msg->bms_state.soc;
   generic_state_.bms_current = msg->bms_state.current;
@@ -249,25 +266,63 @@ void Go2Driver::sportmode_state_handler(const unitree_go::msg::SportModeState::S
 
   generic_state_.body_height = msg->body_height;
 
+  if (publish_sportmode_odom_tf_) {
+    geometry_msgs::msg::TransformStamped transform;
+    transform.header.stamp = now();
+    transform.header.frame_id = "odom";
+    transform.child_frame_id = "base_link";
+    transform.transform.translation.x = msg->position[0];  
+    transform.transform.translation.y = msg->position[1];  
+    transform.transform.translation.z = msg->position[2] + 0.07;
+    transform.transform.rotation.x = msg->imu_state.quaternion[1];  
+    transform.transform.rotation.y = msg->imu_state.quaternion[2];  
+    transform.transform.rotation.z = msg->imu_state.quaternion[3];  
+    transform.transform.rotation.w = msg->imu_state.quaternion[0];  
+    tf_broadcaster_.sendTransform(transform);
+  }
   if (publish_sportmode_odom_) {
     odom.header.stamp = now();
     odom.header.frame_id = "odom";
     odom.child_frame_id = "base_link";
-    odom.pose.pose.position.x = msg->position[0];  
-    odom.pose.pose.position.y = msg->position[1];  
-    odom.pose.pose.position.z = msg->position[2];  
-    odom.pose.pose.orientation.x = msg->imu_state.quaternion[1];  
-    odom.pose.pose.orientation.y = msg->imu_state.quaternion[2];  
-    odom.pose.pose.orientation.z = msg->imu_state.quaternion[3];  
-    odom.pose.pose.orientation.w = msg->imu_state.quaternion[0];  
-    odom.twist.twist.linear.x = msg->velocity[0];  
-    odom.twist.twist.linear.y = msg->velocity[1];  
-    odom.twist.twist.linear.z = msg->velocity[2];  
-    odom.twist.twist.angular.x = msg->imu_state.gyroscope[0];  
-    odom.twist.twist.angular.y = msg->imu_state.gyroscope[1];  
+    odom.pose.pose.position.x = msg->position[0];
+    odom.pose.pose.position.y = msg->position[1];
+    odom.pose.pose.position.z = msg->position[2] + 0.07;
+    odom.pose.pose.orientation.x = msg->imu_state.quaternion[1];
+    odom.pose.pose.orientation.y = msg->imu_state.quaternion[2];
+    odom.pose.pose.orientation.z = msg->imu_state.quaternion[3];
+    odom.pose.pose.orientation.w = msg->imu_state.quaternion[0];
+    odom.twist.twist.linear.x = msg->velocity[0];
+    odom.twist.twist.linear.y = msg->velocity[1];
+    odom.twist.twist.linear.z = msg->velocity[2];
+    odom.twist.twist.angular.x = msg->imu_state.gyroscope[0];
+    odom.twist.twist.angular.y = msg->imu_state.gyroscope[1];
     odom.twist.twist.angular.z = msg->yaw_speed;
 
-    odom_pub_->publish(odom);
+    odom_sportmode_pub_->publish(odom);
+  }
+
+  if (publish_sportmode_imu_) {
+    sensor_msgs::msg::Imu imu_msg;
+    imu_msg.header.stamp = now();
+    imu_msg.header.frame_id = "imu";
+
+    std::array<float, 4> q = msg->imu_state.quaternion;
+    imu_msg.orientation.x = q[1];
+    imu_msg.orientation.y = q[2];
+    imu_msg.orientation.z = q[3];
+    imu_msg.orientation.w = q[0];
+
+    std::array<float, 3> gyro = msg->imu_state.gyroscope;
+    imu_msg.angular_velocity.x = gyro[0];
+    imu_msg.angular_velocity.y = gyro[1];
+    imu_msg.angular_velocity.z = gyro[2];
+
+    std::array<float, 3> accel = msg->imu_state.accelerometer;
+    imu_msg.linear_acceleration.x = accel[0];
+    imu_msg.linear_acceleration.y = accel[1];
+    imu_msg.linear_acceleration.z = accel[2];
+
+    imu_sportmode_pub_->publish(imu_msg);
   }
  
 }

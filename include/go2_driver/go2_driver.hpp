@@ -129,8 +129,10 @@ private:
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
   rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_state_pub_;
-  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_lowstate_pub_;
+  rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_sportmode_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_lowstate_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_sportmode_pub_;
   rclcpp::Publisher<unitree_api::msg::Request>::SharedPtr request_pub_;
   rclcpp::Publisher<go2_driver::msg::GenericState>::SharedPtr generic_state_pub_;
 
@@ -152,9 +154,12 @@ private:
 
   bool odom_published_{false};
 
-  bool publish_odom_tf_{false};
-  bool publish_odom_{false};
+  bool publish_lowstate_odom_tf_{false};
+  bool publish_lowstate_odom_{false};
+  bool publish_sportmode_odom_tf_{true};
   bool publish_sportmode_odom_{true};
+  bool publish_lowstate_imu_{false};
+  bool publish_sportmode_imu_{true};
   double generic_state_pub_hz_{2.0};
 };
 
